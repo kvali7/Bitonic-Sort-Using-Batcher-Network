@@ -3,15 +3,6 @@
 #include <sstream>
 #include <stdio.h>
 using namespace std;
-// Kernel function to add the elements of two arrays
-__global__
-void copy_vec(int n, float *x, float *y)
-{
-  int index = blockIdx.x * blockDim.x + threadIdx.x; // contains index of current thread
-  int stride = blockDim.x * gridDim.x; // contains number of threads in block
-  for (int i = index; i < n/4; i+=stride)
-    reinterpret_cast<float4*>(y)[i] = reinterpret_cast<float4*>(x)[i];
-}
 
 // HOST helper function: get N given size of list
 int getN(int size) {
