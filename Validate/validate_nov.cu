@@ -1,11 +1,11 @@
 
-// nvcc -m64 -arch=sm_35 validate.cu -lcudart -O3 -o validate
-// nvcc validate.cu -o validate ; ./validate 20 1 0
+// nvcc -m64 -arch=sm_35 validate_nov.cu -lcudart -O3 -o validate_nov
+// nvcc validate_nov.cu -o validate_nov ; ./validate_nov 20 1 0
 
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include "helper.h"
+#include "helper_nov.h"
 // #include "sort.cu"
 
 
@@ -29,28 +29,23 @@ int main (int argc, char** argv){
     cudaSetDevice (deviceid);
 
     // Discription
-    printf("Sorting %d items (%d-byte keys %d-byte values)\n",
+    printf("Sorting %d items (%d-byte keys)\n",
         num_items, int(sizeof(float)), int(sizeof(int)));
     fflush(stdout);
 
     // Allocate host arrays
     float*      h_keys             = new float[num_items];
     float*      h_reference_keys   = new float[num_items];
-    int*        h_values           = new int[num_items];
-    int*        h_reference_values = new int[num_items];
 
     // Allocate host arrays
     float*      d_keys;
-    int*        d_values;
     CUDA_SAFE_CALL(cudaMallocManaged(&d_keys, sizeof(float)));
-    CUDA_SAFE_CALL(cudaMallocManaged(&d_values, sizeof(int)));
 
     // Initialize problem and solution on host
-    Initialize(h_keys, h_values, h_reference_keys, h_reference_values, num_items, g_verbose);
+    Initialize(h_keys, h_reference_keys, num_items, g_verbose);
 
     // Copy the data to the device
     cudaMemcpy(d_keys, h_keys,  sizeof(float) * num_items, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_values, h_values, sizeof(int) * num_items, cudaMemcpyHostToDevice);
 
     // Start timer
     float elapsedTime;
@@ -58,8 +53,8 @@ int main (int argc, char** argv){
     cudaEventRecord(start, 0);
 
     // Run the program or Kernel
-    // sort(d_keys, d_values, num_items);
-    // sortkernel <<blocks,threads>>(d_keys, d_values, num_items); 
+    // sort(d_keys, num_items);
+    // sortkernel <<blocks,threads>>(d_keys, num_items); 
 
     // Stop timer
     cudaEventRecord(stop, 0);
@@ -69,12 +64,10 @@ int main (int argc, char** argv){
 
     // Copy the data back to host
     cudaMemcpy(h_keys, d_keys,  sizeof(float) * num_items, cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_values, d_values, sizeof(int) * num_items, cudaMemcpyDeviceToHost);
 
     // just for test remove these for actual implementation
     //*************************
     memcpy(h_keys, h_reference_keys, sizeof(float) * num_items);
-    memcpy(h_values, h_reference_values, sizeof(int) * num_items);
     //**************************
     
 
@@ -83,16 +76,10 @@ int main (int argc, char** argv){
     compare = CompareResults(h_keys, h_reference_keys, num_items, g_verbose);
     printf("\t Compare keys: %s\n", compare ? "FAIL" : "PASS");
     AssertEquals(0, compare);
-    compare = CompareResults(h_values, h_reference_values , num_items, g_verbose);
-    printf("\t Compare values: %s\n", compare ? "FAIL" : "PASS");
-    AssertEquals(0, compare);
 
     if (g_verbose){
         printf("Computed keys: \n");
         DisplayResults(h_keys, num_items);
-        printf("\n\n");
-        printf("Computed values: \n");
-        DisplayResults(h_values, num_items);
         printf("\n\n");
     }
 
@@ -103,10 +90,7 @@ int main (int argc, char** argv){
     // Cleanup
     if (h_keys) delete[] h_keys;
     if (h_reference_keys) delete[] h_reference_keys;
-    if (h_values) delete[] h_values;
-    if (h_reference_values) delete[] h_reference_values;
     if (d_keys) CUDA_SAFE_CALL(cudaFree(d_keys));
-    if (d_values) CUDA_SAFE_CALL(cudaFree(d_values));
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);

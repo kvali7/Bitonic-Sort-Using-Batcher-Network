@@ -33,6 +33,8 @@ using namespace std;
 
 // Functions
 
+
+
 // Argument handler
 void usage(char** argv) {
     fprintf(stderr, "Usage: %s "
@@ -69,7 +71,6 @@ bool IsNaN(T val) { return false; }
 struct Pair
 {
     float   key;
-    int     value;
     bool operator<(const Pair &b) const
     {
         if (key < b.key)
@@ -160,9 +161,7 @@ void DisplayResults(
  */
 void Initialize(
     float           *h_keys,
-    int             *h_values,
     float           *h_reference_keys,
-    int             *h_reference_values,
     int             num_items,
     bool            g_verbose)
 {
@@ -170,24 +169,18 @@ void Initialize(
     for (int i = 0; i < num_items; ++i)
     {
         RandomBits(h_keys[i]);
-        RandomBits(h_values[i]);
         h_pairs[i].key    = h_keys[i];
-        h_pairs[i].value  = h_values[i];
     }
     if (g_verbose)
     {
         printf("Input keys:\n");
         DisplayResults(h_keys, num_items);
         printf("\n\n");
-        printf("Input values:\n");
-        DisplayResults(h_values, num_items);
-        printf("\n\n");
     }
     std::stable_sort(h_pairs, h_pairs + num_items);
     for (int i = 0; i < num_items; ++i)
     {
         h_reference_keys[i]     = h_pairs[i].key;
-        h_reference_values[i]   = h_pairs[i].value;
     }
     delete[] h_pairs;
 }
