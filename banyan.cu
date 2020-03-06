@@ -42,75 +42,6 @@ void shuffleN(float *in, float *out, int size, int N) {
   }
 }
 
-// DEVICE helper function: reverse a string  */
-__device__
-void reverse(char str[], int length) 
-{ 
-    int start = 0; 
-    int end = length -1; 
-    while (start < end) 
-    { 
-        // swap(*(str+start), *(str+end)); 
-        thrust::swap(*(str+start), *(str+end)); 
-        start++; 
-        end--; 
-    } 
-} 
-
-// DEVICE helper function: Implementation of itoa() 
-__device__
-char* itoa(int num, char* str, int base) 
-{ 
-    int i = 0; 
-    bool isNegative = false; 
-  
-    /* Handle 0 explicitely, otherwise empty string is
- * printed for 0 */
-    if (num == 0) 
-    { 
-        str[i++] = '0'; 
-        str[i] = '\0'; 
-        return str; 
-    } 
-  
-    // In standard itoa(), negative numbers are handled
-    // only with  
-    // base 10. Otherwise numbers are considered
-    // unsigned. 
-    if (num < 0 && base == 10) 
-    { 
-        isNegative = true; 
-        num = -num; 
-    } 
-  
-    // Process individual digits 
-    while (num != 0) 
-    { 
-        int rem = num % base; 
-        str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0'; 
-        num = num/base; 
-    } 
-  
-    // If number is negative, append '-' 
-    if (isNegative) 
-        str[i++] = '-'; 
-  
-    str[i] = '\0'; // Append string terminator 
-  
-    // Reverse the string 
-    reverse(str, i); 
-  
-    return str; 
-} 
-
-// DEVICE helper function: print char (from void
-__device__
-void printbinchar(char character)
-{
-    char output[9];
-    itoa(character, output, 2);
-    printf("%s\n", output);
-}
 
 // BUTTERFLY kernel for N=pow(2,n) elements
 __global__
@@ -141,9 +72,9 @@ void butterflyN(float *in, float *out, int size, int N) {
   }
 }
 
-// TO-DO: Implement COMPARE kernel (NOT VALIDATED FOR LARGER BLOCKNUM, THREADNUM!)
+// COMPARE AND SWAP 
 __global__
-void compare(float *in, bool *directions, int level, int N) {
+void compareAndSwap(float *in, bool *directions, int level, int N) {
   // TO-DO: pull in shared memory
   unsigned long stride = blockDim.x*gridDim.x; 
   // if (comp_ind < N) {
@@ -168,6 +99,10 @@ void compare(float *in, bool *directions, int level, int N) {
 
 int main(int argc, char** argv)
 {
+  // USAGE: single argument
+  // -> n = argv[1]
+  // --> e.g. "./banyan 4" would run n=4, N=16
+
   // params for testing helper functions
   stringstream str;
   str << argv[1];
@@ -185,8 +120,8 @@ int main(int argc, char** argv)
   cudaMallocManaged(&comparators, N/2*sizeof(bool));
   printf("Init input:\n");
   for (int i=0; i<N; i++) {
-    x[i]=(float) (N-i);
-    // x[i]=(float) i;
+    x[i]=(float) (N-i); // backwards list 
+    // x[i]=(float) i; // sorted list
     printf("for i=%d: x=%f\n", i, x[i]);
   }
 
@@ -202,32 +137,24 @@ int main(int argc, char** argv)
   while (stage < n) {
     while (substage <= stage) { 
       div = N/(pow(2,2+stage-substage));
-      printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
-      compare<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
+      // printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
+      compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
       cudaDeviceSynchronize();
-      printf("-> compare for stage=%d at level=%d\n", stage, level);
-      // for (int i=0; i<N; i++)
-      //   printf("for i=%d: x=%f\n", i, x[i]);
+      // printf("-> compare for stage=%d at level=%d\n", stage, level);
       if (stage < n-1) {
         threadNum = min(1024, N/div); 
         if (substage == 0) {
           shuffleN<<<div,threadNum>>>(x, y, N/div, N);
           cudaDeviceSynchronize();
           // printf("-> shuffle for stage=%d\n", stage);
-          // for (int i=0; i<N; i++)
-          //   printf("for i=%d: x=%f\n", i, x[i]);
           level++;
         }
-        compare<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
+        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
         cudaDeviceSynchronize();
         // printf("-> compare for stage=%d at level=%d\n", stage, level);
-        // for (int i=0; i<N; i++)
-        //   printf("for i=%d: x=%f\n", i, x[i]);
         butterflyN<<<div,threadNum>>>(x, y, N/div, N);
         cudaDeviceSynchronize();
         // printf("-> butterfly for stage=%d, substage=%d\n", stage, substage);
-        // for (int i=0; i<N; i++)
-        //   printf("for i=%d: x=%f\n", i, x[i]);
         substage++;
       }
       else {
@@ -241,13 +168,13 @@ int main(int argc, char** argv)
   for (int i=0; i<N; i++)
     printf("for i=%d: x=%f\n", i, x[i]);
 
-  // test helper functions
+  // snippets for testing kernels 
 
   // -> compare and swap - VALIDATED 
   // int level = 1;
   // int threadNum = 512;
   // int blockNum = min(65535,(N+threadNum-1)/threadNum); // max(blockNum)=65535
-  // compare<<<blockNum,threadNum>>>(x, comparators, level, N);
+  // compareAndSwap<<<blockNum,threadNum>>>(x, comparators, level, N);
   // cudaDeviceSynchronize();
   // printf("Result of COMPARE:\n");
   // // for (int i=0; i<N/2; i++)
