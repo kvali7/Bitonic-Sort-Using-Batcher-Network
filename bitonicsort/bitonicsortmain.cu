@@ -40,6 +40,11 @@
 #include "bitonicSort.cu"
 #include "sortingNetworks_validate.cpp"
 
+#define SIZE 16 << 20
+// #define BATCH SIZE
+// #define BATCH (16<<20)/16
+#define BATCH (16<<20)/512
+// #define BATCH (16<<20)/2048
 
 ////////////////////////////////////////////////////////////////////////////////
 // Test driver
@@ -50,19 +55,24 @@ int main(int argc, char **argv)
     printf("%s Starting...\n\n", argv[0]);
 
     printf("Starting up CUDA context...\n");
-    int dev = findCudaDevice(argc, (const char **)argv);
+    // int dev = findCudaDevice(argc, (const char **)argv);
 
+    cudaSetDevice (0);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
     uint *h_InputKey, *h_InputVal, *h_OutputKeyGPU, *h_OutputValGPU;
     uint *d_InputKey, *d_InputVal,    *d_OutputKey,    *d_OutputVal;
-    StopWatchInterface *hTimer = NULL;
+    // StopWatchInterface *hTimer = NULL;
 
-    const uint             N = 1048576;
+    const uint             N = SIZE;
     const uint           DIR = 0;
-    const uint     numValues = 65536;
+    const uint     numValues = SIZE;
     const uint numIterations = 1;
 
     printf("Allocating and initializing host arrays...\n\n");
-    sdkCreateTimer(&hTimer);
+    // sdkCreateTimer(&hTimer);
     h_InputKey     = (uint *)malloc(N * sizeof(uint));
     h_InputVal     = (uint *)malloc(N * sizeof(uint));
     h_OutputKeyGPU = (uint *)malloc(N * sizeof(uint));
@@ -92,56 +102,69 @@ int main(int argc, char **argv)
     int flag = 1;
     printf("Running GPU bitonic sort (%u identical iterations)...\n\n", numIterations);
 
-    uint arrayLength = 16 << 20;
+    uint arrayLength = BATCH;
     
-        printf("Testing array length %u (%u arrays per batch)...\n", arrayLength, N / arrayLength);
-        error = cudaDeviceSynchronize();
-        checkCudaErrors(error);
+    printf("Testing array length %u (%u arrays per batch)...\n", arrayLength, N / arrayLength);
+  
 
-        sdkResetTimer(&hTimer);
-        sdkStartTimer(&hTimer);
-        uint threadCount = 0;
+    // sdkResetTimer(&hTimer);
+    // sdkStartTimer(&hTimer); 
+    uint threadCount = 0;
 
-        for (uint i = 0; i < numIterations; i++)
-            threadCount = bitonicSort(
-                              d_OutputKey,
-                              d_OutputVal,
-                              d_InputKey,
-                              d_InputVal,
-                              N / arrayLength,
-                              arrayLength,
-                              DIR
-                          );
+    float elapsedTime;
+    error = cudaDeviceSynchronize();
+    checkCudaErrors(error);
+    cudaEventRecord(start, 0);
 
-        error = cudaDeviceSynchronize();
-        checkCudaErrors(error);
+    for (uint i = 0; i < numIterations; i++)
+        threadCount = bitonicSort(
+                            d_OutputKey,
+                            d_OutputVal,
+                            d_InputKey,
+                            d_InputVal,
+                            N / arrayLength,
+                            arrayLength,
+                            DIR
+                        );
 
-        sdkStopTimer(&hTimer);
-        printf("Average time: %f ms\n\n", sdkGetTimerValue(&hTimer) / numIterations);
 
-        if (arrayLength == N)
-        {
-            double dTimeSecs = 1.0e-3 * sdkGetTimerValue(&hTimer) / numIterations;
-            printf("sortingNetworks-bitonic, Throughput = %.4f MElements/s, Time = %.5f s, Size = %u elements, NumDevsUsed = %u, Workgroup = %u\n",
-                   (1.0e-6 * (double)arrayLength/dTimeSecs), dTimeSecs, arrayLength, 1, threadCount);
-        }
 
-        printf("\nValidating the results...\n");
-        printf("...reading back GPU results\n");
-        error = cudaMemcpy(h_OutputKeyGPU, d_OutputKey, N * sizeof(uint), cudaMemcpyDeviceToHost);
-        checkCudaErrors(error);
-        error = cudaMemcpy(h_OutputValGPU, d_OutputVal, N * sizeof(uint), cudaMemcpyDeviceToHost);
-        checkCudaErrors(error);
+    error = cudaDeviceSynchronize();
+    checkCudaErrors(error);
 
-        int keysFlag = validateSortedKeys(h_OutputKeyGPU, h_InputKey, N / arrayLength, arrayLength, numValues, DIR);
-        int valuesFlag = validateValues(h_OutputKeyGPU, h_OutputValGPU, h_InputKey, N / arrayLength, arrayLength);
-        flag = flag && keysFlag && valuesFlag;
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
 
-        printf("\n");
+    // sdkStopTimer(&hTimer);
+    // printf("Average time: %f ms\n\n", sdkGetTimerValue(&hTimer) / numIterations);
+
+    printf("Processing time: %f (ms)\n", elapsedTime);
+  
+    double dTimeSecs = 1.0e-3 * elapsedTime / numIterations;
+    printf("sortingNetworks-bitonic, Throughput = %.4f MElements/s, Time = %.5f s, Size = %u elements, NumDevsUsed = %u, Workgroup = %u\n",
+            (1.0e-6 * (double)arrayLength/dTimeSecs), dTimeSecs, arrayLength, 1, threadCount);
     
 
-    printf("Shutting down...\n");
-    sdkDeleteTimer(&hTimer);
+    printf("\nValidating the results...\n");
+    printf("...reading back GPU results\n");
+    error = cudaMemcpy(h_OutputKeyGPU, d_OutputKey, N * sizeof(uint), cudaMemcpyDeviceToHost);
+    checkCudaErrors(error);
+    error = cudaMemcpy(h_OutputValGPU, d_OutputVal, N * sizeof(uint), cudaMemcpyDeviceToHost);
+    checkCudaErrors(error);
+
+    int keysFlag = validateSortedKeys(h_OutputKeyGPU, h_InputKey, N / arrayLength, arrayLength, numValues, DIR);
+    int valuesFlag = validateValues(h_OutputKeyGPU, h_OutputValGPU, h_InputKey, N / arrayLength, arrayLength);
+    flag = flag && keysFlag && valuesFlag;
+
+    // printf("\n");
+    // printf("flag is %d\n", flag);
+
+    // printf("Shutting down...\n");
+    
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    // sdkDeleteTimer(&hTimer);
     cudaFree(d_OutputVal);
     cudaFree(d_OutputKey);
     cudaFree(d_InputVal);

@@ -22,6 +22,8 @@
 #include <cub/device/device_radix_sort.cuh>
 #include "test/test_util.h"
 
+#define SIZE 16 << 20
+
 using namespace cub;
 //---------------------------------------------------------------------
 // Globals, constants and typedefs
@@ -85,12 +87,12 @@ void Initialize(
 //---------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-
+    const uint    N = SIZE;
     cudaSetDevice (0);
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    int num_items = 16 << 20;
+    int num_items = SIZE;
     // Initialize command line
     CommandLineArgs args(argc, argv);
     g_verbose = args.CheckCmdLineFlag("v");
@@ -167,6 +169,10 @@ int main(int argc, char** argv)
     if (d_temp_storage) CubDebugExit(g_allocator.DeviceFree(d_temp_storage));
     printf("\n\n");
     printf("Processing time: %f (ms)\n", elapsedTime);
+
+    double dTimeSecs = 1.0e-3 * elapsedTime ;
+    printf("sortingNetworks-cub, Throughput = %.4f MElements/s, Time = %.5f s, Size = %u elements, NumDevsUsed = %u\n",
+    (1.0e-6 * (double)N/dTimeSecs), dTimeSecs , N, 1);
 
     return 0;
 }
