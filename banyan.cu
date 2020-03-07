@@ -113,8 +113,57 @@ void compareAndSwap(float *in, int level, int N) {
   }
 }
 
-void banyan_batcher() {
-
+void banyan_batcher(float *x, int N, int thresh) {
+  // bitonic mergesort on batcher-banyan network
+  int n = (int) log2((float)N);
+  printf("banyan_batcher in function call: N=%d - n=%d\n",N,n);
+  float *y;
+  int level = 0;
+  int stage = 0;
+  int substage = 0;
+  int div; // blockNum for current routing kernel
+  int threadNum; // threadNum for current routing kernel
+  int compThreadNum = 512; // threadNum for compareAndSwap kernel
+  int compBlockNum = min(65535,(N+compThreadNum-1)/compThreadNum); // threadNum for compareAndSwap kernel; max(blockNum)=65535
+  CUDA_SAFE_CALL(cudaMallocManaged(&y, N*sizeof(float)));
+  // printf("compareAndSwap blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
+  while (stage < n) {
+    while (substage <= stage) { 
+      div = N/(pow(2,2+stage-substage));
+      printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
+      if (stage < n-1) {
+        threadNum = min(1024, N/div); 
+        if (substage == 0) {
+          compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
+          cudaDeviceSynchronize();
+          printf("-> compare for stage=%d at level=%d\n", stage, level);
+          shuffleN<<<div,threadNum>>>(x, y, N/div, N);
+          cudaDeviceSynchronize();
+          printf("-> shuffle for stage=%d\n", stage);
+          level++;
+        }
+        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
+        cudaDeviceSynchronize();
+        printf("-> compare for stage=%d at level=%d\n", stage, level);
+        butterflyN<<<div,threadNum>>>(x, y, N/div, N);
+        cudaDeviceSynchronize();
+        printf("-> butterfly for stage=%d, substage=%d\n", stage, substage);
+        substage++;
+      }
+      else {
+        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
+        cudaDeviceSynchronize();
+        printf("-> final compare for stage=%d at level=%d\n", stage, level);
+        break;
+      }
+    }
+    stage++;
+    substage = 0;
+  }
+  CUDA_SAFE_CALL(cudaFree(y));
+  printf("-> first and last elements of sorted result for N=%d\n", N);
+  for (int i=0; i<2*thresh-1; i++)
+    printf("for i=%d: x=%f\n", (i<thresh) ? i : N-(2*thresh-i-1) , (i<thresh) ? x[i] : x[N-(2*thresh-i-1)]);
 }
 
 int main(int argc, char** argv)
@@ -124,68 +173,83 @@ int main(int argc, char** argv)
   // --> e.g. "./banyan 4" would run n=4, N=16
 
   // params for testing helper functions
-  stringstream str;
-  str << argv[1];
-  int n;
-  str >> n;
-  // int n = 10;
+
+  stringstream conv_1(argv[1]);
+  stringstream conv_2(argv[2]);
+  int n, thresh;
+  if (!(conv_1 >> n))
+    n = 4;
+  if (!(conv_2 >> thresh))
+    thresh = 1;
+  // str << argv[1] << argv[2];
+  // str >> n >> thresh;
+  // str << argv[2];
+  // str >> thresh;
   int N = pow(2,n);
-  printf("n=%d // N=%d:\n",n,N);
+  printf("n=%d // N=%d // thresh=%d:\n",n,N,thresh);
 
   // x = inputs, y = outputs 
-  float *x, *y;
+  float *x;
   CUDA_SAFE_CALL(cudaMallocManaged(&x, N*sizeof(float)));
-  CUDA_SAFE_CALL(cudaMallocManaged(&y, N*sizeof(float)));
   printf("Init input:\n");
   for (int i=0; i<N; i++) {
-    // x[i]=(float) (N-i); // backwards list 
+    x[i]=(float) (N-i); // backwards list 
     // x[i]=(float) i; // sorted list
-    x[i]=(float) (rand() % 50); // random list 
-    printf("for i=%d: x=%f\n", i, x[i]);
+    // x[i]=(float) (rand() % 50); // random list 
+    if (i<thresh || i>N-thresh-1)
+      printf("for i=%d: x=%f\n", i, x[i]);
   }
 
+  // TO-DO: 
+  // -> get banyan_batcher function call working network
+  // -> make sure args match those used in 'validation_nov' code 
+  // -> ensure: does num_items == 2^n?
+  banyan_batcher(x, N, thresh); // x = d_keys, N = num_items
+
+  CUDA_SAFE_CALL(cudaFree(x));  
+
   // bitonic mergesort on batcher-banyan network
-  int level = 0;
-  int stage = 0;
-  int substage = 0;
-  int div;
-  int threadNum;
-  int compThreadNum = 512;
-  int compBlockNum = min(65535,(N+compThreadNum-1)/compThreadNum); // max(blockNum)=65535
-  printf("compareAndSwap blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
-  while (stage < n) {
-    while (substage <= stage) { 
-      div = N/(pow(2,2+stage-substage));
-      // printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
-      compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
-      cudaDeviceSynchronize();
-      // printf("-> compare for stage=%d at level=%d\n", stage, level);
-      if (stage < n-1) {
-        threadNum = min(1024, N/div); 
-        if (substage == 0) {
-          shuffleN<<<div,threadNum>>>(x, y, N/div, N);
-          cudaDeviceSynchronize();
-          // printf("-> shuffle for stage=%d\n", stage);
-          level++;
-        }
-        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
-        cudaDeviceSynchronize();
-        // printf("-> compare for stage=%d at level=%d\n", stage, level);
-        butterflyN<<<div,threadNum>>>(x, y, N/div, N);
-        cudaDeviceSynchronize();
-        // printf("-> butterfly for stage=%d, substage=%d\n", stage, substage);
-        substage++;
-      }
-      else {
-        break;
-      }
-    }
-    stage++;
-    substage = 0;
-  }
-  printf("-> sorted result for N=%d\n", N);
-  for (int i=0; i<N; i++)
-    printf("for i=%d: x=%f\n", i, x[i]);
+  // int level = 0;
+  // int stage = 0;
+  // int substage = 0;
+  // int div;
+  // int threadNum;
+  // int compThreadNum = 512;
+  // int compBlockNum = min(65535,(N+compThreadNum-1)/compThreadNum); // max(blockNum)=65535
+  // printf("compareAndSwap blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
+  // while (stage < n) {
+  //   while (substage <= stage) { 
+  //     div = N/(pow(2,2+stage-substage));
+  //     // printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
+  //     compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
+  //     cudaDeviceSynchronize();
+  //     // printf("-> compare for stage=%d at level=%d\n", stage, level);
+  //     if (stage < n-1) {
+  //       threadNum = min(1024, N/div); 
+  //       if (substage == 0) {
+  //         shuffleN<<<div,threadNum>>>(x, y, N/div, N);
+  //         cudaDeviceSynchronize();
+  //         // printf("-> shuffle for stage=%d\n", stage);
+  //         level++;
+  //       }
+  //       compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
+  //       cudaDeviceSynchronize();
+  //       // printf("-> compare for stage=%d at level=%d\n", stage, level);
+  //       butterflyN<<<div,threadNum>>>(x, y, N/div, N);
+  //       cudaDeviceSynchronize();
+  //       // printf("-> butterfly for stage=%d, substage=%d\n", stage, substage);
+  //       substage++;
+  //     }
+  //     else {
+  //       break;
+  //     }
+  //   }
+  //   stage++;
+  //   substage = 0;
+  // }
+  // printf("-> sorted result for N=%d\n", N);
+  // for (int i=0; i<N; i++)
+  //   printf("for i=%d: x=%f\n", i, x[i]);
 
   // snippets for testing kernels 
 
@@ -224,8 +288,5 @@ int main(int argc, char** argv)
   // for (int i=0; i<N; i++)
   //   printf("for i=%d: x=%f\n", i, x[i]);
 
-  CUDA_SAFE_CALL(cudaFree(x));  
-  CUDA_SAFE_CALL(cudaFree(y));
-                                      
   return 0;                           
 }
