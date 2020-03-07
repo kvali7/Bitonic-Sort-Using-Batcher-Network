@@ -1,20 +1,20 @@
 
-// nvcc -m64 -arch=sm_35 validate_nov.cu -lcudart -O3 -o validate_nov
-// nvcc validate_nov.cu -o validate_nov ; ./validate_nov 20 1 0
-
+// nvcc -m64 -arch=sm_35 validate_banyan.cu -lcudart -O3 -o validate_banyan
+// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 1 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <math.h>
 #include "helper_nov.h"
-// #include "sort.cu"
-
+#include "banyan.cu"
+using namespace std;
 
 //---------------------------------------------------------------------
 // Globals, constants and typedefs
 //---------------------------------------------------------------------
-#define SIZE 6
+#define SIZE 8
 bool    g_verbose = false;  // Whether to display input/output to console
-int     num_items = SIZE;
+ulong     num_items = SIZE;
 int     deviceid = 0;
 
 // MAIN
@@ -26,26 +26,38 @@ int main (int argc, char** argv){
 
     argsHandler (argc, argv, &num_items, &g_verbose, &deviceid);
 
+    ulong N = num_items;  
+    if (!IsPowerOfTwo(N)){
+        fprintf(stderr, "Numberof items is not a power of two"
+        "\n");
+        exit(1);  
+    }
+    uint n = log2((double)N); // n is log2 of N
     cudaSetDevice (deviceid);
 
     // Discription
-    printf("Sorting %d items (%d-byte keys)\n",
-        num_items, int(sizeof(float)), int(sizeof(int)));
+    printf("Sorting %d items (%d-byte keys) using Banyan Network, %d total stages\n",
+        N, int(sizeof(float)), n);
     fflush(stdout);
 
     // Allocate host arrays
-    float*      h_keys             = new float[num_items];
-    float*      h_reference_keys   = new float[num_items];
+    float*      h_keys             = new float[N];
+    float*      h_reference_keys   = new float[N];
 
-    // Allocate host arrays
-    float*      d_keys;
-    CUDA_SAFE_CALL(cudaMallocManaged(&d_keys, sizeof(float)));
+    // Allocate device arrays
+    // copied from benyan.cu
+    float*       x;
+    float*       y;
+    bool*        comparators; 
+    CUDA_SAFE_CALL(cudaMallocManaged(&x, N * sizeof(float)));
+    CUDA_SAFE_CALL(cudaMallocManaged(&y, N * sizeof(float)));
+    CUDA_SAFE_CALL(cudaMallocManaged(&comparators, N/2 * sizeof(bool)));
 
     // Initialize problem and solution on host
-    Initialize(h_keys, h_reference_keys, num_items, g_verbose);
+    Initialize(h_keys, h_reference_keys, N, g_verbose);
 
     // Copy the data to the device
-    cudaMemcpy(d_keys, h_keys,  sizeof(float) * num_items, cudaMemcpyHostToDevice);
+    cudaMemcpy(x, h_keys,  sizeof(float) * N, cudaMemcpyHostToDevice);
 
     // Start timer
     float elapsedTime;
@@ -53,8 +65,7 @@ int main (int argc, char** argv){
     cudaEventRecord(start, 0);
 
     // Run the program or Kernel
-    // sort(d_keys, num_items);
-    // sortkernel <<blocks,threads>>(d_keys, num_items); 
+    benyan(x, y, comparators , N, n);
 
     // Stop timer
     cudaEventRecord(stop, 0);
@@ -63,35 +74,38 @@ int main (int argc, char** argv){
     printf("Processing time: %f (ms)\n", elapsedTime);
 
     // Copy the data back to host
-    cudaMemcpy(h_keys, d_keys,  sizeof(float) * num_items, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_keys, x,  sizeof(float) * N, cudaMemcpyDeviceToHost);
 
     // just for test remove these for actual run (cheating)
     //*************************
-    memcpy(h_keys, h_reference_keys, sizeof(float) * num_items);
+    // memcpy(h_keys, h_reference_keys, sizeof(float) * N);
     //**************************
 
-        if (g_verbose){
+
+     if (g_verbose){
         printf("Computed keys: \n");
-        DisplayResults(h_keys, num_items);
+        DisplayResults(h_keys, N);
         printf("\n\n");
     }
 
     // Check for correctness (and display results, if specified)
     int compare;
-    compare = CompareResults(h_keys, h_reference_keys, num_items, g_verbose);
+    compare = CompareResults(h_keys, h_reference_keys, N, g_verbose);
     printf("\t Compare keys: %s\n", compare ? "FAIL" : "PASS");
     AssertEquals(0, compare);
 
-
+   
 
     double dTimeSecs = 1.0e-3 * elapsedTime ;
     printf("Sorting Network, Throughput = %.4f MElements/s, Time = %.5f s, Size = %u elements, NumDevsUsed = %u\n",
-    (1.0e-6 * (double)num_items/dTimeSecs), dTimeSecs , num_items, 1);
+    (1.0e-6 * (double)N/dTimeSecs), dTimeSecs , N, 1);
 
     // Cleanup
     if (h_keys) delete[] h_keys;
     if (h_reference_keys) delete[] h_reference_keys;
-    if (d_keys) CUDA_SAFE_CALL(cudaFree(d_keys));
+    if (x) CUDA_SAFE_CALL(cudaFree(x));
+    if (y) CUDA_SAFE_CALL(cudaFree(y));
+    if (comparators) CUDA_SAFE_CALL(cudaFree(comparators));
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);

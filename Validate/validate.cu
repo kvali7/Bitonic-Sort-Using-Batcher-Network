@@ -12,7 +12,7 @@
 //---------------------------------------------------------------------
 // Globals, constants and typedefs
 //---------------------------------------------------------------------
-#define SIZE 6
+#define SIZE 8
 bool    g_verbose = false;  // Whether to display input/output to console
 int     num_items = SIZE;
 int     deviceid = 0;
@@ -71,12 +71,20 @@ int main (int argc, char** argv){
     cudaMemcpy(h_keys, d_keys,  sizeof(float) * num_items, cudaMemcpyDeviceToHost);
     cudaMemcpy(h_values, d_values, sizeof(int) * num_items, cudaMemcpyDeviceToHost);
 
-    // just for test remove these for actual implementation
+    // just for test remove these for actual run (cheating)
     //*************************
     memcpy(h_keys, h_reference_keys, sizeof(float) * num_items);
     memcpy(h_values, h_reference_values, sizeof(int) * num_items);
     //**************************
-    
+
+     if (g_verbose){
+        printf("Computed keys: \n");
+        DisplayResults(h_keys, num_items);
+        printf("\n\n");
+        printf("Computed values: \n");
+        DisplayResults(h_values, num_items);
+        printf("\n\n");
+    }
 
     // Check for correctness (and display results, if specified)
     int compare;
@@ -87,14 +95,7 @@ int main (int argc, char** argv){
     printf("\t Compare values: %s\n", compare ? "FAIL" : "PASS");
     AssertEquals(0, compare);
 
-    if (g_verbose){
-        printf("Computed keys: \n");
-        DisplayResults(h_keys, num_items);
-        printf("\n\n");
-        printf("Computed values: \n");
-        DisplayResults(h_values, num_items);
-        printf("\n\n");
-    }
+   
 
     double dTimeSecs = 1.0e-3 * elapsedTime ;
     printf("Sorting Network, Throughput = %.4f MElements/s, Time = %.5f s, Size = %u elements, NumDevsUsed = %u\n",

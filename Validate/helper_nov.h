@@ -33,8 +33,6 @@ using namespace std;
 
 // Functions
 
-
-
 // Argument handler
 void usage(char** argv) {
     fprintf(stderr, "Usage: %s "
@@ -44,7 +42,7 @@ void usage(char** argv) {
             "\n", argv[0]);
     exit(1);
 }
-void argsHandler (int argc, char** argv, int* num_items, bool* g_verbose, int* deviceid){
+void argsHandler (int argc, char** argv, ulong* num_items, bool* g_verbose, int* deviceid){
     if (argc < 2 || argc > 4) {
         usage(argv);
     }
@@ -60,7 +58,12 @@ void argsHandler (int argc, char** argv, int* num_items, bool* g_verbose, int* d
  * Simple Fucntion to check if value is NaN
  */
 template <typename T>
-bool IsNaN(T val) { return false; }
+bool IsNaN(T val) { return val!=val; }
+
+/**
+ * Simple Fucntion to check if number is power of 2
+ */
+bool IsPowerOfTwo(ulong x) { return (x != 0) && ((x & (x - 1)) == 0); }
 
 /**
  * Helper for casting character types to integers for cout printing
@@ -149,9 +152,11 @@ void DisplayResults(
     size_t num_items)
 {
     // Display data
-    for (int i = 0; i < int(num_items); i++)
+    for (ulong i = 0; i < ulong(num_items); i++)
     {
-        std::cout << CoutCast(h_data[i]) << ", ";
+        std::cout << CoutCast(h_data[i]);
+        if (i < ulong(num_items)-1)
+            std::cout << ", ";
     }
     printf("\n");
 }
@@ -162,7 +167,7 @@ void DisplayResults(
 void Initialize(
     float           *h_keys,
     float           *h_reference_keys,
-    int             num_items,
+    ulong             num_items,
     bool            g_verbose)
 {
     Pair *h_pairs = new Pair[num_items];
@@ -195,7 +200,7 @@ int CompareResults(T* computed, S* reference, OffsetT len, bool verbose = true)
     {
         if (computed[i] != reference[i])
         {
-            if (verbose) std::cout << "INCORRECT: [" << i << "]: "
+            std::cout << "INCORRECT: [" << i << "]: "
                 << CoutCast(computed[i]) << " != "
                 << CoutCast(reference[i]);
             return 1;
