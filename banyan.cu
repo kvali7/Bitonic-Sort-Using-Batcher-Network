@@ -5,6 +5,26 @@
 #include <thrust/swap.h>
 using namespace std;
 
+/* Cuda memcheck snippets from HW3 
+ * http://graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2
+ */
+#define CUDA_SAFE_CALL_NO_SYNC( call) do {                              \
+  cudaError err = call;                                                 \
+  if( cudaSuccess != err) {                                             \
+    fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",       \
+                __FILE__, __LINE__, cudaGetErrorString( err) );         \
+    exit(EXIT_FAILURE);                                                 \
+    } } while (0)
+
+#define CUDA_SAFE_CALL( call) do {                                      \
+  CUDA_SAFE_CALL_NO_SYNC(call);                                         \
+  cudaError err = cudaDeviceSynchronize();                              \
+  if( cudaSuccess != err) {                                             \
+     fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",      \
+                 __FILE__, __LINE__, cudaGetErrorString( err) );        \
+     exit(EXIT_FAILURE);                                                \
+     } } while (0)
+
 // HOST helper function: get N given size of list
 int getN(int size) {
   int N = 2; 
@@ -74,7 +94,7 @@ void butterflyN(float *in, float *out, int size, int N) {
 
 // COMPARE AND SWAP 
 __global__
-void compareAndSwap(float *in, bool *directions, int level, int N) {
+void compareAndSwap(float *in, int level, int N) {
   // TO-DO: pull in shared memory
   unsigned long stride = blockDim.x*gridDim.x; 
   // if (comp_ind < N) {
@@ -82,11 +102,7 @@ void compareAndSwap(float *in, bool *directions, int level, int N) {
        comp_ind < N;
        comp_ind += stride) {
     // STEP 0: Get direction of comparison
-    // printf("ind_in: %d\n", ind_in);
-    // printbinchar((char) ind_in & (0x1 << level));
     bool comp_bool = (bool)(comp_ind & (0x1 << level)); 
-    // printf("for ind_in=%d comp_bool=%d\n", ind_in, comp_bool);
-    directions[comp_ind] = comp_bool;
     // STEP 1: Write out results of comparisons
     unsigned long data0 = 2*comp_ind;
     unsigned long data1 = 2*comp_ind+1;
@@ -95,6 +111,10 @@ void compareAndSwap(float *in, bool *directions, int level, int N) {
         thrust::swap(*(in+data0), *(in+data1)); 
     }
   }
+}
+
+void banyan_batcher() {
+
 }
 
 int main(int argc, char** argv)
@@ -114,14 +134,13 @@ int main(int argc, char** argv)
 
   // x = inputs, y = outputs 
   float *x, *y;
-  bool *comparators; 
-  cudaMallocManaged(&x, N*sizeof(float));
-  cudaMallocManaged(&y, N*sizeof(float));
-  cudaMallocManaged(&comparators, N/2*sizeof(bool));
+  CUDA_SAFE_CALL(cudaMallocManaged(&x, N*sizeof(float)));
+  CUDA_SAFE_CALL(cudaMallocManaged(&y, N*sizeof(float)));
   printf("Init input:\n");
   for (int i=0; i<N; i++) {
-    x[i]=(float) (N-i); // backwards list 
+    // x[i]=(float) (N-i); // backwards list 
     // x[i]=(float) i; // sorted list
+    x[i]=(float) (rand() % 50); // random list 
     printf("for i=%d: x=%f\n", i, x[i]);
   }
 
@@ -133,12 +152,12 @@ int main(int argc, char** argv)
   int threadNum;
   int compThreadNum = 512;
   int compBlockNum = min(65535,(N+compThreadNum-1)/compThreadNum); // max(blockNum)=65535
-  printf("comparator blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
+  printf("compareAndSwap blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
   while (stage < n) {
     while (substage <= stage) { 
       div = N/(pow(2,2+stage-substage));
       // printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
-      compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
+      compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
       cudaDeviceSynchronize();
       // printf("-> compare for stage=%d at level=%d\n", stage, level);
       if (stage < n-1) {
@@ -149,7 +168,7 @@ int main(int argc, char** argv)
           // printf("-> shuffle for stage=%d\n", stage);
           level++;
         }
-        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
+        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, level, N);
         cudaDeviceSynchronize();
         // printf("-> compare for stage=%d at level=%d\n", stage, level);
         butterflyN<<<div,threadNum>>>(x, y, N/div, N);
@@ -174,7 +193,7 @@ int main(int argc, char** argv)
   // int level = 1;
   // int threadNum = 512;
   // int blockNum = min(65535,(N+threadNum-1)/threadNum); // max(blockNum)=65535
-  // compareAndSwap<<<blockNum,threadNum>>>(x, comparators, level, N);
+  // compareAndSwap<<<blockNum,threadNum>>>(x, level, N);
   // cudaDeviceSynchronize();
   // printf("Result of COMPARE:\n");
   // // for (int i=0; i<N/2; i++)
@@ -205,9 +224,8 @@ int main(int argc, char** argv)
   // for (int i=0; i<N; i++)
   //   printf("for i=%d: x=%f\n", i, x[i]);
 
-  cudaFree(x);  
-  cudaFree(y);
-  cudaFree(comparators);
-
-  return 0;
+  CUDA_SAFE_CALL(cudaFree(x));  
+  CUDA_SAFE_CALL(cudaFree(y));
+                                      
+  return 0;                           
 }
