@@ -18,21 +18,11 @@ For Bitonic sort, Go to the bitonicsort/ directory and change the defined SIZE c
 
 
 # Validation of our program
-For Validation, go to the Validation/ directory and replace the program inside the "Run the program or Kernel" in the validate.cu code (The program should be included in the file). Also the "just for test remove these for actual implementation" section should be commented out, because it is basically cheating as it copies to h_reference_keys and h_reference_values to h_keys and h_values. I was using it to test the validation program. Now compilation is possible using the following command:
-  
-  $ nvcc validate.cu -o validate ; ./validate "input items" "verbose" "device-id"
+For Validation, go to the Validation/ directory and use with the following command
 
-for example to create 20 random keys and values and validate with verbose option and with one device we can use the following code:
+$ nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 128
 
-  $nvcc validate.cu -o validate ; ./validate 20 1 0
-  
-  
-If there are only keys and no values, we can just use the validate_nov.cu program.
-usage is similar to validate.cu:
+or for verbose use 
 
-  $ nvcc validate_nov.cu -o validate_nov ; ./validate_nov "input items" "verbose" "device-id"
-
-for example to create 20 random keys and validate with verbose option and with one device we can use the following code:
-
-  $nvcc validate_nov.cu -o validate_nov ; ./validate_nov 20 1 0
+$ nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 128 1
   
