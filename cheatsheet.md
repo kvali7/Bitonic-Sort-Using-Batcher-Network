@@ -24,7 +24,7 @@ $ git pull
 
 $ git pull origin branchname
 
-8- commit once more using this command or using the source control section
+8- commit once more using this command or using the source control section (because after pulling the local file was deleted while merging!)
 
 $ git commit -m "message"
 

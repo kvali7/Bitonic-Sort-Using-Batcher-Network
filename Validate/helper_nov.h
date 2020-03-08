@@ -1,4 +1,8 @@
-// Created from CUB helper functins //
+/* Cuda memcheck snippets from HW3 
+ * http://graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2
+ * Some other helper functions was used from CUB library
+ */
+
 
 #include <stdio.h>
 #include <iostream>

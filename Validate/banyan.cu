@@ -74,19 +74,15 @@ void butterflyN(float *in, float *out, int size, ulong N) {
 
 // COMPARE AND SWAP 
 __global__
-void compareAndSwap(float *in, bool *directions, int level, ulong N) {
+void compareAndSwap(float *in, int level, ulong N) {
   // TO-DO: pull in shared memory
   unsigned long stride = blockDim.x*gridDim.x; 
   // if (comp_ind < N) {
   for (unsigned long comp_ind = (unsigned long) blockDim.x*blockIdx.x+threadIdx.x;
-       comp_ind < N;
+       comp_ind < N/2;
        comp_ind += stride) {
     // STEP 0: Get direction of comparison
-    // printf("ind_in: %d\n", ind_in);
-    // printbinchar((char) ind_in & (0x1 << level));
     bool comp_bool = (bool)(comp_ind & (0x1 << level)); 
-    // printf("for ind_in=%d comp_bool=%d\n", ind_in, comp_bool);
-    directions[comp_ind] = comp_bool;
     // STEP 1: Write out results of comparisons
     unsigned long data0 = 2*comp_ind;
     unsigned long data1 = 2*comp_ind+1;
@@ -97,34 +93,32 @@ void compareAndSwap(float *in, bool *directions, int level, ulong N) {
   }
 }
 
-// int main(int argc, char** argv)
-void benyan(float* x, float* y, bool* comparators, ulong N, uint n)
-{
+void banyan(float *x, float *y, ulong N, uint n) {
   // bitonic mergesort on batcher-banyan network
   int level = 0;
   int stage = 0;
   int substage = 0;
-  int div;
-  int threadNum;
-  int compThreadNum = 512;
+  int div; // blockNum for current routing kernel
+  int threadNum; // threadNum for current routing kernel
+  int compThreadNum = 512; // threadNum for compareAndSwap kernel
   int compBlockNum = min((long)65535,(N+compThreadNum-1)/compThreadNum); // max(blockNum)=65535
-  printf("comparator blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
+
   while (stage < n) {
     while (substage <= stage) { 
       div = N/(pow(2,2+stage-substage));
       // printf("stage=%d - substage=%d - div=%d - level=%d\n", stage, substage, div, level);
-      compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
-      cudaDeviceSynchronize();
-      // printf("-> compare for stage=%d at level=%d\n", stage, level);
       if (stage < n-1) {
         threadNum = min((long)1024, N/div); 
         if (substage == 0) {
+          compareAndSwap<<<compBlockNum,compThreadNum>>>(x, level, N);
+          cudaDeviceSynchronize();
+          // printf("-> compare for stage=%d at level=%d\n", stage, level);
           shuffleN<<<div,threadNum>>>(x, y, N/div, N);
           cudaDeviceSynchronize();
           // printf("-> shuffle for stage=%d\n", stage);
           level++;
         }
-        compareAndSwap<<<compThreadNum,compBlockNum>>>(x, comparators, level, N);
+        compareAndSwap<<<compBlockNum,compThreadNum>>>(x, level, N);
         cudaDeviceSynchronize();
         // printf("-> compare for stage=%d at level=%d\n", stage, level);
         butterflyN<<<div,threadNum>>>(x, y, N/div, N);
@@ -133,12 +127,15 @@ void benyan(float* x, float* y, bool* comparators, ulong N, uint n)
         substage++;
       }
       else {
+        compareAndSwap<<<compBlockNum,compThreadNum>>>(x, level, N);
+        cudaDeviceSynchronize();
+        // printf("-> final compare for stage=%d at level=%d\n", stage, level);
         break;
       }
     }
     stage++;
     substage = 0;
   }
-
-  return ;
+  
+  return;
 }

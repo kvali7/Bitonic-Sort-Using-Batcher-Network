@@ -12,7 +12,7 @@ using namespace std;
 //---------------------------------------------------------------------
 // Globals, constants and typedefs
 //---------------------------------------------------------------------
-#define SIZE 8
+#define SIZE 16
 bool    g_verbose = false;  // Whether to display input/output to console
 ulong     num_items = SIZE;
 int     deviceid = 0;
@@ -38,6 +38,8 @@ int main (int argc, char** argv){
     // Discription
     printf("Sorting %d items (%d-byte keys) using Banyan Network, %d total stages\n",
         N, int(sizeof(float)), n);
+    printf("banyan_batcher in function call: N=%d - n=%d (sorting %d-byte keys) \n",(int)N,(int)n, int(sizeof(float)));
+
     fflush(stdout);
 
     // Allocate host arrays
@@ -45,13 +47,11 @@ int main (int argc, char** argv){
     float*      h_reference_keys   = new float[N];
 
     // Allocate device arrays
-    // copied from benyan.cu
+    // copied from banyan.cu
     float*       x;
     float*       y;
-    bool*        comparators; 
     CUDA_SAFE_CALL(cudaMallocManaged(&x, N * sizeof(float)));
     CUDA_SAFE_CALL(cudaMallocManaged(&y, N * sizeof(float)));
-    CUDA_SAFE_CALL(cudaMallocManaged(&comparators, N/2 * sizeof(bool)));
 
     // Initialize problem and solution on host
     Initialize(h_keys, h_reference_keys, N, g_verbose);
@@ -65,7 +65,7 @@ int main (int argc, char** argv){
     cudaEventRecord(start, 0);
 
     // Run the program or Kernel
-    benyan(x, y, comparators , N, n);
+    banyan(x, y , N, n);
 
     // Stop timer
     cudaEventRecord(stop, 0);
@@ -105,7 +105,6 @@ int main (int argc, char** argv){
     if (h_reference_keys) delete[] h_reference_keys;
     if (x) CUDA_SAFE_CALL(cudaFree(x));
     if (y) CUDA_SAFE_CALL(cudaFree(y));
-    if (comparators) CUDA_SAFE_CALL(cudaFree(comparators));
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
