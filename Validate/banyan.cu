@@ -93,8 +93,10 @@ void compareAndSwap(float *in, int level, ulong N) {
   }
 }
 
-void banyan(float *x, float *y, ulong N, uint n) {
+void banyan(float *x, ulong N, uint n) {
   // bitonic mergesort on batcher-banyan network
+  float*       y;
+  CUDA_SAFE_CALL(cudaMallocManaged(&y, N * sizeof(float)));
   int level = 0;
   int stage = 0;
   int substage = 0;
@@ -136,6 +138,9 @@ void banyan(float *x, float *y, ulong N, uint n) {
     stage++;
     substage = 0;
   }
-  
+
+
+  if (y) CUDA_SAFE_CALL(cudaFree(y));
+
   return;
 }

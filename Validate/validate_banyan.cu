@@ -43,21 +43,19 @@ int main (int argc, char** argv){
     fflush(stdout);
 
     // Allocate host arrays
-    float*      h_keys             = new float[N];
-    float*      h_reference_keys   = new float[N];
+    float*      h_data             = new float[N];
+    float*      h_reference_data   = new float[N];
 
     // Allocate device arrays
     // copied from banyan.cu
-    float*       x;
-    float*       y;
-    CUDA_SAFE_CALL(cudaMallocManaged(&x, N * sizeof(float)));
-    CUDA_SAFE_CALL(cudaMallocManaged(&y, N * sizeof(float)));
+    float*       d_data;
+    CUDA_SAFE_CALL(cudaMallocManaged(&d_data, N * sizeof(float)));
 
     // Initialize problem and solution on host
-    Initialize(h_keys, h_reference_keys, N, g_verbose);
+    Initialize(h_data, h_reference_data, N, g_verbose);
 
     // Copy the data to the device
-    cudaMemcpy(x, h_keys,  sizeof(float) * N, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_data, h_data,  sizeof(float) * N, cudaMemcpyHostToDevice);
 
     // Start timer
     float elapsedTime;
@@ -65,7 +63,7 @@ int main (int argc, char** argv){
     cudaEventRecord(start, 0);
 
     // Run the program or Kernel
-    banyan(x, y , N, n);
+    banyan(d_data , N, n);
 
     // Stop timer
     cudaEventRecord(stop, 0);
@@ -74,23 +72,23 @@ int main (int argc, char** argv){
     printf("Processing time: %f (ms)\n", elapsedTime);
 
     // Copy the data back to host
-    cudaMemcpy(h_keys, x,  sizeof(float) * N, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_data, d_data,  sizeof(float) * N, cudaMemcpyDeviceToHost);
 
     // just for test remove these for actual run (cheating)
     //*************************
-    // memcpy(h_keys, h_reference_keys, sizeof(float) * N);
+    // memcpy(h_data, h_reference_data, sizeof(float) * N);
     //**************************
 
 
      if (g_verbose){
         printf("Computed keys: \n");
-        DisplayResults(h_keys, N);
+        DisplayResults(h_data, N);
         printf("\n\n");
     }
 
     // Check for correctness (and display results, if specified)
     int compare;
-    compare = CompareResults(h_keys, h_reference_keys, N, g_verbose);
+    compare = CompareResults(h_data, h_reference_data, N, g_verbose);
     printf("\t Compare keys: %s\n", compare ? "FAIL" : "PASS");
     AssertEquals(0, compare);
 
@@ -101,10 +99,9 @@ int main (int argc, char** argv){
     (1.0e-6 * (double)N/dTimeSecs), dTimeSecs , N, 1);
 
     // Cleanup
-    if (h_keys) delete[] h_keys;
-    if (h_reference_keys) delete[] h_reference_keys;
-    if (x) CUDA_SAFE_CALL(cudaFree(x));
-    if (y) CUDA_SAFE_CALL(cudaFree(y));
+    if (h_data) delete[] h_data;
+    if (h_reference_data) delete[] h_reference_data;
+    if (d_data) CUDA_SAFE_CALL(cudaFree(d_data));
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
