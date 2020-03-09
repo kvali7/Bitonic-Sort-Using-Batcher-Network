@@ -35,16 +35,16 @@ __device__ void shuffle(int stageSize, int value, int addrOut, int offset, float
     array[addrIn + offset] = value;
 }
 
-__device__ void shuffle(int stageSize, int value, int addrOut, int offset, float *array){
+__device__ void butterfly(int stageSize, int value, int addrOut, int offset, float *array){
 
-    int firstBit = addOut % 2; 
+    int firstBit = addrOut % 2; 
     int lastBit = addrOut / (stageSize / 2);
     int addrIn = addrOut; 
     addrIn = addrIn - (addrIn % 2);
     addrIn &= ~(stageSize / 2);
     addrIn |= (firstBit * stageSize / 2);
     addrIn |= lastBit;
-
+    array[addrIn + offset] = value;
 }
 
 
@@ -52,23 +52,36 @@ __global__ void stagingKernel(int stageNum, int stageSize, int numElements, floa
     
     int index = blockIdx.x * blockDim.x + threadIdx.x; 
     int stride = blockDim.x * gridDim.x; 
+    int tIndex = threadIdx.x; 
 
     extern __shared__ float buffer[];
 
     for (int addr = index; addr < (numElements / 2); addr += stride){
         int level = stageNum; 
-        int outAddrOffset = threadIdx.x - (threadIdx.x % stageSize);
+        int direction = -1;
+
+        int outAddrOffset = tIndex - (tIndex % stageSize);
         int outAddr0 = (addr * 2) % stageSize;
         int outAddr1 = (addr * 2 + 1) % stageSize;
     
         float firstIn = arrayIn[addr * 2];
         float secondIn = arrayIn[addr * 2 + 1];
-        compare_and_switch(addr % 2, &firstIn, &secondIn);
-        shuffle(numElements, firstIn, addr * 2, outAddrOffset, buffer);
-        shuffle(numElements, secondIn, addr * 2 + 1, outAddrOffset, buffer);
-        for(){
-            compare_and_switch(, &firstIn, &secondIn);
-            butterfly; 
+        
+        direction = (addr & (1 << level)) == 0 ? UP : DOWN;
+        compare_and_switch(direction, &firstIn, &secondIn);
+        
+        shuffle(stageSize, firstIn, outAddr0, outAddrOffset, buffer);
+        shuffle(stageSize, secondIn, outAddr1, outAddrOffset, buffer);
+        
+        level++;
+        direction = addr & (1 << level) == 0 ? UP : DOWN;
+        
+        for (int iteration = 0; iteration <= stageNum; ++iteration){
+            firstIn = buffer[tIndex * 2];
+            secondIn = buffer[tIndex * 2 + 1];
+            compare_and_switch(direction, &firstIn, &secondIn);
+            butterfly(stageSize, firstIn, outAddr0, outAddrOffset, buffer);
+            butterfly(stageSize, secondIn, outAddr1, outAddrOffset, buffer); 
         }
     }
 
