@@ -7,6 +7,7 @@
 #include <math.h>
 #include "helper_nov.h"
 #include "banyan.cu"
+// #include "../shared_memory/benes.cu"
 using namespace std;
 
 //---------------------------------------------------------------------
@@ -53,6 +54,15 @@ int main (int argc, char** argv){
 
     // Initialize problem and solution on host
     Initialize(h_data, h_reference_data, N, g_verbose);
+
+    float hard_code[N]= {2,13,4,0,11,-5,9,1,15,-6,12,7,14,3,8,10};
+    memcpy(h_data,hard_code,sizeof(float) * N);
+
+    if (g_verbose){
+        printf("Input keys: \n");
+        DisplayResults(h_data, N);
+        printf("\n\n");
+    }
 
     // Copy the data to the device
     cudaMemcpy(d_data, h_data,  sizeof(float) * N, cudaMemcpyHostToDevice);
