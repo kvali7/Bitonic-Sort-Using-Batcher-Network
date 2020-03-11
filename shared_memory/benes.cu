@@ -1,5 +1,7 @@
 #include <iostream>
-
+#include <sstream>
+#include <stdio.h>
+using namespace std;
 
 #define UP 0
 #define DOWN 1
@@ -7,6 +9,26 @@
 #define BLOCK_SIZE 1024
 #define NUM_BLOCKS 128
 #define SHARED_MEM 8192
+
+/* Cuda memcheck snippets from HW3 
+ * http://graphics.stanford.edu/~seander/bithacks.html#DetermineIfPowerOf2
+ */
+#define CUDA_SAFE_CALL_NO_SYNC( call) do {                              \
+  cudaError err = call;                                                 \
+  if( cudaSuccess != err) {                                             \
+    fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",       \
+                __FILE__, __LINE__, cudaGetErrorString( err) );         \
+    exit(EXIT_FAILURE);                                                 \
+    } } while (0)
+
+#define CUDA_SAFE_CALL( call) do {                                      \
+  CUDA_SAFE_CALL_NO_SYNC(call);                                         \
+  cudaError err = cudaDeviceSynchronize();                              \
+  if( cudaSuccess != err) {                                             \
+     fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",      \
+                 __FILE__, __LINE__, cudaGetErrorString( err) );        \
+     exit(EXIT_FAILURE);                                                \
+     } } while (0)
 
 __device__ int getButtSize(int stageSize, int numButterfly){
     return stageSize >> numButterfly;
@@ -72,12 +94,12 @@ __global__ void stagingKernel(int stageNum, int stageSize, int numElements, floa
     __shared__ float buffer[SHARED_MEM];
 
     int level = stageNum; 
-    // printf ("blockIdx.x: %4d\tthreadIdx.x: %4d\nindex: %4d\tstride: %4d\t\n\n", blockIdx.x, threadIdx.x, index, stride);
+    // printf ("blockIdx.x: %4d\tthreadIdx.x: %4d\nindex: %4d\tstride: %4d\n\n", blockIdx.x, threadIdx.x, index, stride);
     for (int addr = index; addr < (numElements / 2); addr += stride){   
         for (int iteration = 0; iteration < maximum(stageSize / (2 * BLOCK_SIZE), 1); ++iteration){
             int compGlobalAddr = addr + iteration * BLOCK_SIZE;
             int compLocalAddr = threadIdx.x + iteration * BLOCK_SIZE;
-            // printf ("blockIdx.x: %4d\tthreadIdx.x: %4d\ncompGlobalAddr: %4d\tcompLocalAddr: %4d\t\n\n", blockIdx.x, threadIdx.x, compGlobalAddr, compLocalAddr);
+            // printf ("blockIdx.x: %4d\tthreadIdx.x: %4d\ncompGlobalAddr: %4d\tcompLocalAddr: %4d\n\n", blockIdx.x, threadIdx.x, compGlobalAddr, compLocalAddr);
 
             int firstInAddr = compGlobalAddr * 2;
             int secondInAddr = compGlobalAddr * 2 + 1;
@@ -214,5 +236,55 @@ void banyan(float *x, ulong N, uint n){
         stageSize = stageSize * 2;
     }
     cleanupKenerl<<< 80, 1024>>>(N, x);
+    cudaDeviceSynchronize();
     
+}
+
+// main for debugging individual kernels
+int main(int argc, char** argv)
+{
+  // USAGE: single argument
+  // -> n = argv[1]
+  // --> e.g. "./banyan 4" would run n=4, N=16
+
+  // params for testing helper functions
+
+  stringstream conv_1(argv[1]);
+  stringstream conv_2(argv[2]);
+  uint n;
+  int thresh;
+  if (!(conv_1 >> n))
+    n = 4;
+  if (!(conv_2 >> thresh))
+    thresh = 1;
+  ulong N = pow(2,n);
+  printf("n=%d // N=%d // thresh=%d:\n",(int)n,(int)N,thresh); // NOTE: might not be exposing issue by casting to int here
+
+  // x = inputs, y = outputs 
+  float *x;
+  CUDA_SAFE_CALL(cudaMallocManaged(&x, N*sizeof(float)));
+  printf("------------------------------------------------------------\n");
+  printf("Init input:\n");
+  printf("------------------------------------------------------------\n");
+  for (int i=0; i<N; i++) {
+    x[i]=(float) (N-i-1); // backwards list 
+    // x[i]=(float) i; // sorted list
+    // x[i]=(float) (rand() % 50); // random list 
+    if (i<thresh || i>N-thresh-1)
+      printf("for i=%d: x=%f\n", i, x[i]);
+  }
+
+  // call batcher-banyan sorting network on N-element array
+  banyan(x, N, n);
+  cudaDeviceSynchronize();
+  printf("------------------------------------------------------------\n");
+  printf("Output:\n");
+  printf("------------------------------------------------------------\n");
+  for (int i=0; i<2*thresh-1; i++) {
+    printf("for i=%d: x=%f\n", (i<thresh) ? i : (int)N-(2*thresh-i-1) , (i<thresh) ? x[i] : x[(int)N-(2*thresh-i-1)]);
+  }
+
+  CUDA_SAFE_CALL(cudaFree(x));  
+
+  return 0;                           
 }
