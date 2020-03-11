@@ -6,7 +6,8 @@
 #include <cuda_runtime.h>
 #include <math.h>
 #include "helper_nov.h"
-#include "banyan.cu"
+// #include "banyan.cu"
+#include "../shared_memory/benes.cu"
 using namespace std;
 
 //---------------------------------------------------------------------
@@ -51,8 +52,20 @@ int main (int argc, char** argv){
     float*       d_data;
     CUDA_SAFE_CALL(cudaMallocManaged(&d_data, N * sizeof(float)));
 
-    // Initialize problem and solution on host
+    // Initialize problem and solution on host Random
     Initialize(h_data, h_reference_data, N, g_verbose);
+    // Initialize problem and solution on host hard coded
+    // float hard_code[] = {2,13,4,0,11,-5,9,1,15,-6,12,7,14,3,8,10};
+    // memcpy(h_data,hard_code,sizeof(float) * N);
+    // float hard_code_sortd[] = {-6, -5, 0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    // memcpy(h_reference_data,hard_code_sortd,sizeof(float) * N);
+
+
+    if (g_verbose){
+        printf("Input keys: \n");
+        DisplayResults(h_data, N);
+        printf("\n\n");
+    }
 
     // Copy the data to the device
     cudaMemcpy(d_data, h_data,  sizeof(float) * N, cudaMemcpyHostToDevice);
@@ -81,6 +94,9 @@ int main (int argc, char** argv){
 
 
      if (g_verbose){
+        printf("reference keys: \n");
+        DisplayResults(h_reference_data, N);
+        printf("\n\n");
         printf("Computed keys: \n");
         DisplayResults(h_data, N);
         printf("\n\n");
