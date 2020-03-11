@@ -24,11 +24,11 @@ int main (int argc, char** argv){
 
     int minn = 4;
     int maxn = 26;
-    int maxiter = 8;
+    int maxiter = 10;
     double time[30] = {0};
     double speed[30] = {0};
-    double timetemp[10] = {0};
-    double speedtemp[10] = {0};
+    double timetemp[12] = {0};
+    double speedtemp[12] = {0};
     double timesum = 0;
     double speedsum = 0;
 
