@@ -8,6 +8,8 @@
 #include <iostream>
 #include <algorithm>
 #include "mersenne.h"
+#include <bits/stdc++.h> 
+#include <sys/time.h> 
 
 // Macro 
 #define MAX(a, b) (((b) > (a)) ? (b) : (a))
@@ -55,6 +57,20 @@ void argsHandler (int argc, char** argv, ulong* num_items, bool* g_verbose, int*
         *g_verbose = atoi(argv[2]);
     if (argc >= 4)
     *deviceid = atoi(argv[3]);
+    return;
+}
+
+void argsHandlerThresh (int argc, char** argv, ulong* num_items, bool* g_verbose, int* deviceid, int* thresh){
+    if (argc < 2 || argc > 5) {
+        usage(argv);
+    }
+    *num_items = atoi(argv[1]);
+    if (argc >= 3)
+        *thresh = atoi(argv[2]);   
+    if (argc >= 4)
+        *g_verbose = atoi(argv[3]);
+    if (argc >= 5)
+    *deviceid = atoi(argv[4]);
     return;
 }
 
@@ -166,6 +182,28 @@ void DisplayResults(
 }
 
 /**
+ * A function to Display the data on console only head and tail
+ */
+template <typename InputIteratorT>
+void DisplayResultsHT(
+    InputIteratorT h_data,
+    size_t num_items,
+    int thresh)
+{
+    int flag = 0;
+    // Display data only head and tail
+    for (int i = 0; i < 2 * thresh - 1; i++){
+        if (i == num_items/2 || (int)num_items - (2 * thresh - i - 1) == num_items/2)
+            if (flag == 0)
+                flag = 1;
+            else
+                continue;
+            printf("for i=%d: data=%f\n", (i < thresh) ? i : (int)num_items - ( 2 * thresh - i - 1) , (i < thresh) ? h_data[i] : h_data[(int)num_items - (2 * thresh - i - 1)]);
+    }
+    printf("\n");
+}
+
+/**
  * A Helper function to Initalize random elements on host
  */
 void Initialize(
@@ -174,6 +212,7 @@ void Initialize(
     ulong             num_items,
     bool            g_verbose)
 {
+    struct timespec start, end; 
     Pair *h_pairs = new Pair[num_items];
     for (int i = 0; i < num_items; ++i)
     {
@@ -186,7 +225,21 @@ void Initialize(
         DisplayResults(h_keys, num_items);
         printf("\n\n");
     }
-    std::stable_sort(h_pairs, h_pairs + num_items);
+    clock_gettime(CLOCK_MONOTONIC, &start); 
+    ios_base::sync_with_stdio(false);
+    std::sort(h_pairs, h_pairs + num_items);
+    clock_gettime(CLOCK_MONOTONIC, &end); 
+    // Calculating total time taken by the program. 
+    double time_taken; 
+    time_taken = (end.tv_sec - start.tv_sec) * 1e9; 
+    time_taken = (time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9; 
+  
+    std::cout << "Time taken by std::sort on CPU is : " << fixed 
+         << time_taken * 1.0e3 << setprecision(9); 
+    std::cout << " msec" << " \t and" ; 
+        std::cout << "Speed by program on CPU is : " << fixed 
+         << 1.0e-6 * (double)num_items/time_taken << setprecision(5); 
+    std::cout << " MElements/s" << endl; 
     for (int i = 0; i < num_items; ++i)
     {
         h_reference_keys[i]     = h_pairs[i].key;

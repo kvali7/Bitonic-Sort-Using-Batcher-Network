@@ -1,6 +1,5 @@
-
 // nvcc -m64 -arch=sm_35 validate_banyan.cu -lcudart -O3 -o validate_banyan
-// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 1 0
+// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 4 1 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -16,6 +15,7 @@ using namespace std;
 bool    g_verbose = false;  // Whether to display input/output to console
 ulong     num_items = SIZE;
 int     deviceid = 0;
+int     thresh  = 4;
 
 // MAIN
 int main (int argc, char** argv){
@@ -24,9 +24,13 @@ int main (int argc, char** argv){
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 
-    argsHandler (argc, argv, &num_items, &g_verbose, &deviceid);
+    // argsHandler (argc, argv, &num_items, &g_verbose, &deviceid);
+    argsHandlerThresh (argc, argv, &num_items, &g_verbose, &deviceid, &thresh);
 
     ulong N = num_items;  
+    if (thresh > N/2)
+        thresh = N/2 + 1;
+
     if (!IsPowerOfTwo(N)){
         fprintf(stderr, "Numberof items is not a power of two"
         "\n");
@@ -51,8 +55,26 @@ int main (int argc, char** argv){
     float*       d_data;
     CUDA_SAFE_CALL(cudaMallocManaged(&d_data, N * sizeof(float)));
 
-    // Initialize problem and solution on host
-    Initialize(h_data, h_reference_data, N, g_verbose);
+    // Initialize problem and solution on host Random
+    // Initialize(h_data, h_reference_data, N, g_verbose);
+    // Initialize problem and solution on host with hardcoded array
+    // float hard_code[] = {2,13,4,0,11,-5,9,1,15,-6,12,7,14,3,8,10};
+    // memcpy(h_data,hard_code,sizeof(float) * N);
+    // float hard_code_sortd[] = {-6, -5, 0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    // memcpy(h_reference_data,hard_code_sortd,sizeof(float) * N);
+
+    // Initialize problem and solution with descending array
+    for (int k = 0; k < N; k++){
+        h_reference_data[k] = (float)k;
+        h_data[k] = (float)N-k-1;
+    }
+    if (g_verbose){
+        printf("Input keys: \n");
+        DisplayResultsHT(h_data, N, thresh);
+        // DisplayResults(h_data, N);
+        printf("\n\n");
+    }
+
 
     // Copy the data to the device
     cudaMemcpy(d_data, h_data,  sizeof(float) * N, cudaMemcpyHostToDevice);
@@ -81,8 +103,13 @@ int main (int argc, char** argv){
 
 
      if (g_verbose){
+        printf("Reference keys: \n");
+        // DisplayResults(h_reference_data, N);
+        DisplayResultsHT(h_reference_data, N, thresh);
+        printf("\n\n");
         printf("Computed keys: \n");
-        DisplayResults(h_data, N);
+        // DisplayResults(h_data, N);
+        DisplayResultsHT(h_data, N, thresh);
         printf("\n\n");
     }
 
