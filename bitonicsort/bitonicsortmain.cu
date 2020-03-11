@@ -40,10 +40,10 @@
 #include "bitonicSort.cu"
 #include "sortingNetworks_validate.cpp"
 
-#define SIZE 16 << 20
+#define SIZE 1<<10
 // #define BATCH SIZE
 // #define BATCH (16<<20)/16
-#define BATCH (16<<20)/512
+// #define BATCH (16<<20)/512
 // #define BATCH (16<<20)/2048
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +102,7 @@ int main(int argc, char **argv)
     int flag = 1;
     printf("Running GPU bitonic sort (%u identical iterations)...\n\n", numIterations);
 
-    uint arrayLength = BATCH;
+    uint arrayLength = SIZE;
     
     printf("Testing array length %u (%u arrays per batch)...\n", arrayLength, N / arrayLength);
   
