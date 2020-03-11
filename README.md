@@ -1,5 +1,9 @@
-# CRS_PRJ_289Q_WQ2020_Temp
-Branch for the Other GPU sorting algorithms
+
+# A CUDA-Based Banyan-Batcher Network for Bitonic Sort 
+This repository contains code implementing a Banyan-Batcher sorting network for the final project of the Winter 2020 offering of EEC289Q Modern Parallel Computing at UC Davis.
+
+## Presentation
+[![Link to final presentation](https://img.youtube.com/vi/At_atdszObM/0.jpg)](https://www.youtube.com/watch?v=At_atdszObM)
 
 # CUB Radix Sort
 For CUB radix sort, change the defined SIZE constant inside the cubradixsort.cu and compile with the following command
