@@ -123,6 +123,7 @@ void banyan(float *x, float *y, ulong N, uint n) {
   int threadNum; // threadNum for current routing kernel
   int compThreadNum = 512; // threadNum for compareAndSwap kernel
   int compBlockNum = min((long)65535,(N+compThreadNum-1)/compThreadNum); // max(blockNum)=65535
+
   CUDA_SAFE_CALL(cudaMallocManaged(&y, N*sizeof(float)));
   // printf("compareAndSwap blockNum=%d - threadNum=%d\n", compBlockNum, compThreadNum);
   while (stage < n) {
