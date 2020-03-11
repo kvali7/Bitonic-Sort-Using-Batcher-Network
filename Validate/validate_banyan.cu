@@ -1,5 +1,5 @@
 // nvcc -m64 -arch=sm_35 validate_banyan.cu -lcudart -O3 -o validate_banyan
-// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 4 1 0
+// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 10 1 0
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -20,6 +20,7 @@ int     thresh  = 4;
 // MAIN
 int main (int argc, char** argv){
 
+    double time_taken = 0;
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -55,8 +56,16 @@ int main (int argc, char** argv){
     float*       d_data;
     CUDA_SAFE_CALL(cudaMallocManaged(&d_data, N * sizeof(float)));
 
+
     // Initialize problem and solution on host Random
     // Initialize(h_data, h_reference_data, N, g_verbose);
+    // Initialize(h_data, h_reference_data, N, g_verbose, &time_taken);
+    // std::cout << "Time taken by std::sort on CPU is : " << fixed 
+    // << time_taken * 1.0e3 << setprecision(9); 
+    // std::cout << " msec" << " \t and " ; 
+    // std::cout << "Speed by program on CPU is : " << fixed 
+    //     << 1.0e-6 * (double)num_items/time_taken << setprecision(5); 
+    // std::cout << " MElements/s" << endl; 
     // Initialize problem and solution on host with hardcoded array
     // float hard_code[] = {2,13,4,0,11,-5,9,1,15,-6,12,7,14,3,8,10};
     // memcpy(h_data,hard_code,sizeof(float) * N);
@@ -74,6 +83,8 @@ int main (int argc, char** argv){
         // DisplayResults(h_data, N);
         printf("\n\n");
     }
+
+
 
 
     // Copy the data to the device

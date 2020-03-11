@@ -1,5 +1,5 @@
 // nvcc -m64 -arch=sm_35 validate_banyan.cu -lcudart -O3 -o validate_banyan
-// nvcc validate_banyan.cu -o validate_banyan ; ./validate_banyan 16 1 0
+// nvcc validate_banyan_bench.cu -o validate_banyan_bench ; ./validate_banyan_bench
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -21,6 +21,7 @@ ulong N;
 int main (int argc, char** argv){
 
     cudaSetDevice (deviceid);
+    double time_taken = 0;
 
     int minn = 4;
     int maxn = 26;
@@ -32,11 +33,21 @@ int main (int argc, char** argv){
     double timesum = 0;
     double speedsum = 0;
 
+    double timec[30] = {0};
+    double speedc[30] = {0};
+    double timetempc[12] = {0};
+    double speedtempc[12] = {0};
+    double timesumc = 0;
+    double speedsumc = 0;
+
+
     int n = 24;
     for ( n = minn; n <= maxn; n++){
       N = pow(2,n);
-      memset (timetemp, 0, 10* sizeof(double));
-      memset (speedtemp, 0 , 10* sizeof(double));
+      memset (timetemp, 0, 12* sizeof(double));
+      memset (speedtemp, 0 , 12* sizeof(double));
+      memset (timetempc, 0, 12* sizeof(double));
+      memset (speedtempc, 0 , 12* sizeof(double));
       for (int iter = 0; iter < maxiter; iter++){
 
             cudaEvent_t start, stop;
@@ -70,7 +81,14 @@ int main (int argc, char** argv){
             CUDA_SAFE_CALL(cudaMallocManaged(&d_data, N * sizeof(float)));
 
             // Initialize problem and solution on host
-            Initialize(h_data, h_reference_data, N, g_verbose);
+            Initialize(h_data, h_reference_data, N, g_verbose, &time_taken);
+            std::cout << "Time taken by std::sort on CPU is : " << fixed 
+            << time_taken * 1.0e3 << setprecision(9); 
+            std::cout << " msec" << " \t and " ; 
+            std::cout << "Speed by program on CPU is : " << fixed 
+                << 1.0e-6 * (double)N/time_taken << setprecision(5); 
+            std::cout << " MElements/s" << endl; 
+
 
             // Copy the data to the device
             cudaMemcpy(d_data, h_data,  sizeof(float) * N, cudaMemcpyHostToDevice);
@@ -127,17 +145,26 @@ int main (int argc, char** argv){
 
             timetemp[iter] = elapsedTime;
             speedtemp[iter] = 1.0e-6 * (double)N/dTimeSecs;
+
+            timetempc[iter] = time_taken * 1.0e3 ;
+            speedtempc[iter] =  1.0e-6 * (double)N/time_taken;
         }
     
         timesum = 0;
         speedsum = 0;
+        timesumc = 0;
+        speedsumc = 0;
         for (int iter = 0; iter < maxiter; iter++){
           timesum = timesum + timetemp[iter];
           speedsum = speedsum + speedtemp[iter];
+          timesumc = timesumc + timetempc[iter];
+          speedsumc = speedsumc + speedtempc[iter];
         }
     
         time[n] = (float)timesum / maxiter;
         speed[n] = (float)speedsum / maxiter;
+        timec[n] = (float)timesumc / maxiter;
+        speedc[n] = (float)speedsumc / maxiter;
       }
     
     
@@ -163,7 +190,50 @@ int main (int argc, char** argv){
       printf ("\n\n\tspeed:\n");
       for (n = minn; n <= maxn; n++){
         printf ("%lf,\t", speed[n]);
+      } 
+      
+            printf ("\n\n\tn:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%d,\t", n);
+      }
+    
+      printf ("\n\n\tN:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%u,\t", (uint)pow(2,n));
+      }
+      
+      printf ("\n\n\ttime:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%lf,\t", time[n]);
+      }
+    
+      printf ("\n\n");
+    
+      printf ("\n\n\tspeed:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%lf,\t", speed[n]);
       }    
+    
+      printf ("\n\n");
+
+
+      //CPU
+      
+      printf ("\n\n\ttime CPU:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%lf,\t", timec[n]);
+      }
+      printf ("\n\n");
+
+    
+      printf ("\n\n\tspeed CPU:\n");
+      for (n = minn; n <= maxn; n++){
+        printf ("%lf,\t", speedc[n]);
+      }    
+    
+
+
+
     
       printf ("\n\n");
     

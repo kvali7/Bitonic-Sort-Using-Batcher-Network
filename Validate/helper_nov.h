@@ -210,7 +210,8 @@ void Initialize(
     float           *h_keys,
     float           *h_reference_keys,
     ulong             num_items,
-    bool            g_verbose)
+    bool            g_verbose, 
+    double          *time_taken = 0)
 {
     struct timespec start, end; 
     Pair *h_pairs = new Pair[num_items];
@@ -230,16 +231,13 @@ void Initialize(
     std::sort(h_pairs, h_pairs + num_items);
     clock_gettime(CLOCK_MONOTONIC, &end); 
     // Calculating total time taken by the program. 
-    double time_taken; 
-    time_taken = (end.tv_sec - start.tv_sec) * 1e9; 
-    time_taken = (time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9; 
+    
+    if (time_taken) {
+        *time_taken = (end.tv_sec - start.tv_sec) * 1e9; 
+        *time_taken = (*time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9; 
+    }
   
-    std::cout << "Time taken by std::sort on CPU is : " << fixed 
-         << time_taken * 1.0e3 << setprecision(9); 
-    std::cout << " msec" << " \t and" ; 
-        std::cout << "Speed by program on CPU is : " << fixed 
-         << 1.0e-6 * (double)num_items/time_taken << setprecision(5); 
-    std::cout << " MElements/s" << endl; 
+
     for (int i = 0; i < num_items; ++i)
     {
         h_reference_keys[i]     = h_pairs[i].key;
